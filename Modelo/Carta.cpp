@@ -37,7 +37,28 @@ std::string Carta::colorToString() const {
     }
 }
 
-bool Carta::operator==(const Carta& otraCarta) const {
-    return (tipo_ == otraCarta.tipo_ && color_ == otraCarta.color_ && numero_ == otraCarta.numero_);
+int Carta::comparar(const Carta& otraCarta) const {
+    // Si las cartas son del mismo tipo, el ganador es aquel con el n�mero mayor
+    if (tipo_ == otraCarta.tipo_) {
+        if (numero_ > otraCarta.numero_) {
+            return -1; // Carta actual gana
+        }
+        else if (numero_ < otraCarta.numero_) {
+            return 1; // Otra carta gana
+        }
+        else {
+            return 0; // Empate
+        }
+    }
+
+    // Si las cartas son de tipos diferentes, se aplica la l�gica original
+    if ((tipo_ == Tipo::FUEGO_ && otraCarta.tipo_ == Tipo::HIELO_) ||
+        (tipo_ == Tipo::HIELO_ && otraCarta.tipo_ == Tipo::AGUA_) ||
+        (tipo_ == Tipo::AGUA_ && otraCarta.tipo_ == Tipo::FUEGO_)) {
+        return -1; // Carta actual gana
+    }
+    else {
+        return 1; // Otra carta gana
+    }
 }
 
