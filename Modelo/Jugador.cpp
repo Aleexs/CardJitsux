@@ -1,262 +1,199 @@
 // jugador.cpp
 #include "jugador.h"
-#include <iostream>
-#include <random>
 
-Jugador::Jugador(const std::string& nombre, const std::vector<Carta>& mazoOriginal, int puntuacion)
-    : nombre_(nombre), puntuacion_(puntuacion), mazoOriginal_(mazoOriginal) {
-    importarPuntuacion();
-    mazoMezclado_ = mazoOriginal_;
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(mazoMezclado_.begin(), mazoMezclado_.end(), g);
+Jugador::Jugador(const std::string& nombre, const Mazo& mazoOriginal)
+    : nombre_(nombre), mazoOriginal_(mazoOriginal.obtenerMazoOriginal()) {
+    mezclarCartas();
 }
 
-void Jugador::importarPuntuacion() {
-    std::ifstream archivoRanking("Ranking.txt");
-    if (!archivoRanking.is_open()) {
-        // Si no se puede abrir el archivo, se considera que el jugador no tiene puntuaci�n y se inicializa en 0
-        puntuacion_ = 0;
-        return;
-    }
-
-    std::string linea;
-    while (std::getline(archivoRanking, linea)) {
-        std::istringstream iss(linea);
-        std::string nombre;
-        int puntuacion;
-        iss >> nombre >> puntuacion;
-        if (nombre == nombre_) {
-            puntuacion_ = puntuacion;
-            break;
-        }
-    }
-    archivoRanking.close();
-}
-
-void Jugador::exportarPuntuacion() const {
-    std::ofstream archivoRanking("Ranking.txt", std::ios_base::app); // Se abre en modo append para agregar sin sobrescribir
-    if (archivoRanking.is_open()) {
-        archivoRanking << nombre_ << " " << puntuacion_ << "\n";
-        archivoRanking.close();
-    }
-}
-
-int Jugador::getPuntuacion() const {
-    return puntuacion_;
-}
-
-void Jugador::actualizarPuntuacion(int puntos) {
-    puntuacion_ += puntos;
-}
-
-std::vector<Carta> Jugador::obtenerMazoMezclado() const {
-    return mazoMezclado_;
-}
-
-void Jugador::generarMano() {
-    mano_.clear();
-    while (mano_.size() < 5 && !mazoMezclado_.empty()) {
-        mano_.push_back(mazoMezclado_.back());
-        mazoMezclado_.pop_back();
-    }
-}
-
-void Jugador::mostrarMano() const {
-    std::cout << "Mano de " << nombre_ << ":\n";
-    for (const auto& carta : mano_) {
-        std::cout << carta.tipoToString() << carta.colorToString() << carta.getNumero() << ", ";
-    }
-    std::cout << "\n";
-}
-
-Carta Jugador::elegirCarta() {
-    std::cout << "Mano de " << nombre_ << ":\n";
-    int i = 1;
-    for (const auto& carta : mano_) {
-        std::cout << i << ". " << carta.tipoToString() << carta.colorToString() << carta.getNumero() << "\n";
-        i++;
-    }
-
-    size_t eleccion; 
-    do {
-        std::cout << "Elige una carta (1-" << i - 1 << "): ";
-        std::cin >> eleccion;
-    } while (eleccion < 1 || eleccion >= static_cast<size_t>(i));
-
-    cartaElegida_ = mano_[eleccion - 1]; // Copia la carta seleccionada a cartaElegida_
-
-    eliminarCartaDeMano(cartaElegida_);
-    generarMano(); // Actualizar la mano con una nueva carta si es necesario
-    return cartaElegida_;
-}
-
-const Carta& Jugador::obtenerCartaElegida() const {
-    return cartaElegida_;
-}
-
-const std::string& Jugador::obtenerNombre() const {
+std::string Jugador::getNombre() const {
     return nombre_;
 }
 
-void Jugador::eliminarCartaDeMano(const Carta& carta) {
-    auto it = std::find(mano_.begin(), mano_.end(), carta);
-    if (it != mano_.end()) {
-        mano_.erase(it);
+void Jugador::mostrarMazoOriginal() const {
+    std::cout << "Mazo Original de " << nombre_ << ":" << std::endl;
+    std::cout << "[";
+    for (const auto& carta : mazoOriginal_) {
+        std::cout << carta.tipoToString()<< carta.colorToString()<< carta.getNumero() << " ";
+    }
+    std::cout << "] \n";
+}
+
+void Jugador::mostrarMazoAleatorio() const {
+    std::cout << "\n Mazo Aleatorio de " << nombre_ << ":" << std::endl;
+    std::cout << "[";
+    for (const auto& carta : mazoAleatorio_) {
+        std::cout << carta.tipoToString()<< carta.colorToString() << carta.getNumero() << " ";
+    }
+    std::cout << "] \n";
+}
+
+std::vector<Carta> Jugador::obtenerMazoAleatorio() const {
+    return mazoAleatorio_;
+}
+
+void Jugador::mezclarCartas() {
+    mazoAleatorio_ = mazoOriginal_;
+
+    // Generar una semilla aleatoria para el generador de n�meros aleatorios
+    unsigned seed = static_cast<unsigned>(std::chrono::system_clock::now().time_since_epoch().count());
+
+    // Mezclar las cartas de forma aleatoria usando el generador
+    std::shuffle(mazoAleatorio_.begin(), mazoAleatorio_.end(), std::default_random_engine(seed));
+}
+
+
+/// Mano
+void Jugador::generarMano() {
+    if (mazoAleatorio_.empty()) {
+        std::cout << "No hay suficientes cartas para generar una mano.\n";
+        return;
+    }
+
+    mano_.clear();
+    int cartasEnMano = std::min(5, static_cast<int>(mazoAleatorio_.size()));
+    for (int i = 0; i < cartasEnMano; i++) {
+        mano_.push_back(mazoAleatorio_.front());
+        mazoAleatorio_.erase(mazoAleatorio_.begin());
     }
 }
 
-int Jugador::enfrentarCartas(Jugador& jugadorContrincante, const Carta& cartaJugador1, const Carta& cartaJugador2) {
-    cartasGanadasRonda_.clear();
+std::vector<Carta> Jugador::obtenerMano() const {
+    return mano_;
+}
 
-    std::cout << "Jugador " << nombre_ << " eligi� la carta: " << cartaJugador1.tipoToString() << cartaJugador1.colorToString() << cartaJugador1.getNumero() << std::endl;
-    std::cout << "Jugador " << jugadorContrincante.obtenerNombre() << " eligi� la carta: " << cartaJugador2.tipoToString() << cartaJugador2.colorToString() << cartaJugador2.getNumero() << std::endl;
+void Jugador::mostrarMano() const {
+    std::cout << "\n" << nombre_ << ", tu mano actual es:\n";
+    int i = 1;
+    for (const auto& carta : mano_) {
+        std::cout <<i<<") " << carta.tipoToString() << " " << carta.colorToString() << " " << carta.getNumero() << "\n";
+        i++;
+    }
+}
+/*
+Carta Jugador::elegirCarta() {
+    int opcion;
+    std::cout << "\n" << nombre_ << ", elige una carta de tu mano:\n";
+    mostrarMano();
 
+    do {
+        std::cout << "Ingresa el numero de la carta que deseas jugar (1-5): ";
+        std::cin >> opcion;
+    } while (opcion < 1 || opcion > static_cast<int>(mano_.size())); // Conversi�n expl�cita a int
+
+    // Obtener la carta elegida
+    Carta cartaElegida = mano_[static_cast<size_t>(opcion) - 1]; // Conversi�n expl�cita a size_t
+
+    // Eliminar la carta elegida de la mano
+    mano_.erase(mano_.begin() + static_cast<size_t>(opcion) - 1); // Conversi�n expl�cita a size_t
+
+    // Rellenar la mano con la primera carta del mazoAleatorio
+    if (!mazoAleatorio_.empty()) {
+        mano_.push_back(mazoAleatorio_.front());
+        mazoAleatorio_.erase(mazoAleatorio_.begin());
+    }
+
+    return cartaElegida; // Devolver una copia de la carta, no una referencia
+}*/
+
+
+Carta Jugador::obtenerCartaElegida() {
+    int opcion;
+    std::cout << "\n" << nombre_ << ", elige una carta de tu mano:\n";
+    mostrarMano();
+
+    do {
+        std::cout << "Ingresa el numero de la carta que deseas jugar (1-5): ";
+        std::cin >> opcion;
+    } while (opcion < 1 || opcion > static_cast<int>(mano_.size())); // Conversi�n expl�cita a int
+
+    // Obtener la carta elegida
+    Carta cartaElegida = mano_[static_cast<size_t>(opcion) - 1]; // Conversi�n expl�cita a size_t
+
+    // Eliminar la carta elegida de la mano
+    mano_.erase(mano_.begin() + static_cast<size_t>(opcion) - 1); // Conversi�n expl�cita a size_t
+
+    // Rellenar la mano con la primera carta del mazoAleatorio
+    if (!mazoAleatorio_.empty()) {
+        mano_.push_back(mazoAleatorio_.front());
+        mazoAleatorio_.erase(mazoAleatorio_.begin());
+    }
+
+    return cartaElegida; // Devolver una copia de la carta, no una referencia
+}
+
+void Jugador::enfrentarCartas(const Carta& cartaJugador1, const Carta& cartaJugador2, Jugador& jugadorContrario) {
     int resultado = cartaJugador1.comparar(cartaJugador2);
 
     if (resultado == -1) {
-        // Jugador 1 gana la ronda
-        guardarCartaGanadaPropia(cartaJugador1);
-        jugadorContrincante.eliminarCartaDeMano(cartaJugador2);
+        std::cout << "\n" << nombre_ << " gana la ronda con la carta: " << cartaJugador1.tipoToString()
+            << " " << cartaJugador1.colorToString() << " " << cartaJugador1.getNumero() << "\n";
+        cartasGanadoras_.push_back(cartaJugador1);
+        jugadorContrario.mostrarEstadoRondaContrario(cartaJugador1); // Llamamos a la funci�n del jugador contrario
     }
     else if (resultado == 1) {
-        // Jugador 2 gana la ronda
-        jugadorContrincante.guardarCartaGanadaPropia(cartaJugador2);
-        eliminarCartaDeMano(cartaJugador1);
+        std::cout << "\n" << jugadorContrario.nombre_ << " gana la ronda con la carta: " << cartaJugador2.tipoToString()
+            << " " << cartaJugador2.colorToString() << " " << cartaJugador2.getNumero() << "\n";
+        jugadorContrario.cartasGanadoras_.push_back(cartaJugador2);
+        mostrarEstadoRondaContrario(cartaJugador2); // Llamamos a la funci�n para mostrar el mensaje del jugador contrario
     }
     else {
-        // Empate, no se guarda ninguna carta
-        eliminarCartaDeMano(cartaJugador1);
-        jugadorContrincante.eliminarCartaDeMano(cartaJugador2);
-    }
-
-    return resultado;
-}
-
-const std::vector<Carta>& Jugador::obtenerCartasGanadas() const {
-    return cartasGanadasPropias_;
-}
-
-const std::vector<Carta>& Jugador::obtenerCartasGanadasRonda() const {
-    return cartasGanadasRonda_;
-}
-
-bool Jugador::esGanadorPartida() const {
-    return cartasGanadasPropias_.size() > 3;
-}
-
-const std::string& Jugador::obtenerNombreGanadorPartida() const {
-    if (esGanadorPartida()) {
-        return nombre_;
-    }
-    
-}
-
-const std::string& Jugador::obtenerNombrePerdedorPartida() const {
-    if (!esGanadorPartida()) {
-        return nombre_;
-    }
-    
-}
-
-void Jugador::actualizarPuntuacionPartida() {
-    if (esGanadorPartida()) {
-        puntuacion_ += 2;
-    }
-    else {
-        puntuacion_ -= 1;
+        std::cout << "\nEs un empate en la ronda.\n";
     }
 }
 
-void Jugador::guardarCartaGanadaPropia(const Carta& cartaGanada) {
-    cartasGanadasPropias_.push_back(cartaGanada);
-}
-
-
-std::string Jugador::obtenerGanadorRonda(const Jugador& jugadorContrincante, const Carta& cartaJugador1, const Carta& cartaJugador2) const {
-    if (cartaJugador1 == cartaJugador2) {
-        return "Empate";
+void Jugador::mostrarEstadoRondaContrario(const Carta& cartaGanadoraContrario) {
+    std::string tipoGanadorContrario;
+    switch (cartaGanadoraContrario.getTipo()) {
+    case Carta::Tipo::FUEGO_: tipoGanadorContrario = "incendi�ndose"; break;
+    case Carta::Tipo::HIELO_: tipoGanadorContrario = "congel�ndose"; break;
+    case Carta::Tipo::AGUA_: tipoGanadorContrario = "moj�ndose"; break;
+    default: tipoGanadorContrario = "desconocido"; break;
     }
-    else if ((cartaJugador1.getTipo() == Carta::Tipo::FUEGO_ && cartaJugador2.getTipo() == Carta::Tipo::HIELO_) ||
-        (cartaJugador1.getTipo() == Carta::Tipo::HIELO_ && cartaJugador2.getTipo() == Carta::Tipo::AGUA_) ||
-        (cartaJugador1.getTipo() == Carta::Tipo::AGUA_ && cartaJugador2.getTipo() == Carta::Tipo::FUEGO_)) {
-        return nombre_;
-    }
-    else {
-        return jugadorContrincante.obtenerNombre();
-    }
+    std::cout << nombre_ << " se est� " << tipoGanadorContrario << ".\n";
 }
 
-std::string Jugador::obtenerPerdedorRonda(const Jugador& jugadorContrincante, const Carta& cartaJugador1, const Carta& cartaJugador2) const {
-    std::string ganador = obtenerGanadorRonda(jugadorContrincante, cartaJugador1, cartaJugador2);
-    return (ganador == nombre_) ? jugadorContrincante.obtenerNombre() : nombre_;
-}
-
-void Jugador::mostrarGanadorRonda(const Jugador& jugadorContrincante, const Carta& cartaJugador1, const Carta& cartaJugador2) const {
-    std::string ganador = obtenerGanadorRonda(jugadorContrincante, cartaJugador1, cartaJugador2);
-    std::cout << "El ganador de la ronda es: " << ganador << std::endl;
-}
-
-void Jugador::mostrarPerdedorRonda(const Jugador& jugadorContrincante, const Carta& cartaJugador1, const Carta& cartaJugador2) const {
-    std::string perdedor = obtenerPerdedorRonda(jugadorContrincante, cartaJugador1, cartaJugador2);
-    std::cout << "El perdedor de la ronda es: " << perdedor << std::endl;
-}
-
-void Jugador::aumentarPuntuacion() {
-    puntuacion_ += 2;
-}
-
-void Jugador::reducirPuntuacion() {
-    if (puntuacion_ > 0) {
-        puntuacion_ -= 1;
-    }
-}
-
-int Jugador::importarPuntuacion(const std::string& nombreJugador) {
-    std::ifstream archivo("Ranking.txt");
-    std::string linea;
-    while (std::getline(archivo, linea)) {
-        std::istringstream iss(linea);
-        std::string nombre;
-        int puntuacion;
-        if (iss >> nombre >> puntuacion) {
-            if (nombre == nombreJugador) {
-                return puntuacion;
-            }
-        }
-    }
-    return 0; 
-}
-
-void Jugador::exportarPuntuacion(const std::string& nombreJugador, int puntuacion) {
-    std::ifstream archivoEntrada("Ranking.txt");
-    std::vector<std::string> lineas;
-    std::string linea;
-    while (std::getline(archivoEntrada, linea)) {
-        lineas.push_back(linea);
-    }
-
-    archivoEntrada.close();
-
-    std::ofstream archivoSalida("Ranking.txt");
-    bool jugadorEncontrado = false;
-    for (const std::string& linea : lineas) {
-        std::istringstream iss(linea);
-        std::string nombre;
-        int puntuacionExistente;
-        if (iss >> nombre >> puntuacionExistente) {
-            if (nombre == nombreJugador) {
-                archivoSalida << nombreJugador << " " << puntuacion << std::endl;
-                jugadorEncontrado = true;
-            }
-            else {
-                archivoSalida << linea << std::endl;
+bool Jugador::verificarGanadorPartida() {
+    // Verificar si hay 3 cartas del mismo tipo pero diferente color
+    for (size_t i = 0; i < cartasGanadoras_.size(); i++) {
+        int contadorTipo = 1;
+        for (size_t j = i + 1; j < cartasGanadoras_.size(); j++) {
+            if (cartasGanadoras_[i].getTipo() == cartasGanadoras_[j].getTipo() &&
+                cartasGanadoras_[i].getColor() != cartasGanadoras_[j].getColor()) {
+                contadorTipo++;
+                if (contadorTipo == 3) {
+                    return true;
+                }
             }
         }
     }
 
-    if (!jugadorEncontrado) {
-        archivoSalida << nombreJugador << " " << puntuacion << std::endl;
+    // Verificar si hay 3 cartas del mismo color pero diferente tipo
+    for (size_t i = 0; i < cartasGanadoras_.size(); i++) {
+        int contadorColor = 1;
+        for (size_t j = i + 1; j < cartasGanadoras_.size(); j++) {
+            if (cartasGanadoras_[i].getColor() == cartasGanadoras_[j].getColor()) {
+                contadorColor++;
+                if (contadorColor == 3) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+const std::vector<Carta>& Jugador::obtenerCartasGanadoras() const {
+    return cartasGanadoras_;
+}
+
+void Jugador::mostrarCartasGanadoras() const {
+    std::cout << "\nCartas ganadoras de " << nombre_ << ":\n";
+    for (const auto& carta : cartasGanadoras_) {
+        std::cout << carta.tipoToString() << carta.colorToString()<< carta.getNumero() << " ";
     }
 }
+
+
 
